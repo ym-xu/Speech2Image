@@ -15,6 +15,31 @@ import numpy.random as random
 import pickle
 from utils.config import cfg
 
+def pad_collate(batch):
+    max_input_len = float('-inf')
+    max_target_len = float('-inf')
+    if cfg.TRAIN.MODAL != 'extraction':
+        for elem in batch:
+            if cfg.TRAIN.MODAL != 'extraction':
+                imgs, caps, cls_id, key, label = elem
+            max_input_len = max_input_len if max_input_len > caps.shape[0] else caps.shape[0]       
+
+        for i, elem in enumerate(batch):
+            imgs, caps, cls_id, key,label = elem
+            input_length = caps.shape[0]
+            input_dim = caps.shape[1]
+            # print('f.shape: ' + str(f.shape))
+            feature = np.zeros((max_input_len, input_dim), dtype=np.float)
+            feature[:caps.shape[0], :caps.shape[1]] = caps       
+            
+            batch[i] = (imgs, feature, cls_id, key, input_length, label)
+            # print('feature.shape: ' + str(feature.shape))
+            # print('trn.shape: ' + str(trn.shape))
+
+        batch.sort(key=lambda x: x[-2], reverse=True)
+
+    return default_collate(batch)
+
 def get_imgs(img_path, imsize, bbox=None, transform=None, normalize=None):
     img = Image.open(img_path).convert('RGB')
     width, height = img.size

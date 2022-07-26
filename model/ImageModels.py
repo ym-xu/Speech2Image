@@ -91,7 +91,7 @@ class Inception_v3(nn.Module):
     def __init__(self):
         super(Inception_v3, self).__init__()        
 
-        model = models.inception_v3()
+        model = models.inception_v3(init_weights = True)
         url = 'https://download.pytorch.org/models/inception_v3_google-1a9a5a14.pth'
         model.load_state_dict(model_zoo.load_url(url))
         for param in model.parameters():
