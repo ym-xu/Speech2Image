@@ -77,7 +77,7 @@ class SpeechDataset(data.Dataset):
         self.class_id = self.load_class_id(split_dir, len(self.filenames))
 
     def load_filenames(self, data_dir, split):      
-        filepath = '%s/%s/filenames.pickle' % (data_dir, split)
+        filepath = '%s/%s/filenames_byimage.pickle' % (data_dir, split)
         if os.path.isfile(filepath):
             with open(filepath, 'rb') as f:
                 filenames = pickle.load(f)     #filenames中保存的形式'002.Laysan_Albatross/Laysan_Albatross_0044_784',
@@ -111,7 +111,7 @@ class SpeechDataset(data.Dataset):
 
         if cfg.SPEECH.style == 'mel':
             if self.data_dir.find('Flickr8k') != -1:
-                audio_file = '%s/flickr_audio/mel/%s.npy' % (data_dir, key) 
+                audio_file = '%s/audio2/audio_mel/%s.npy' % (data_dir, key) 
             
             if self.split=='train':
                 audio_ix = random.randint(0, self.embeddings_num)
