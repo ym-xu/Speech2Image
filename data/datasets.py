@@ -75,6 +75,7 @@ class SpeechDataset(data.Dataset):
 
         self.filenames = self.load_filenames(data_dir, split)
         self.class_id = self.load_class_id(split_dir, len(self.filenames))
+        print(self.class_id)
 
     def load_filenames(self, data_dir, split):      
         filepath = '%s/%s/filenames_byimage.pickle' % (data_dir, split)
