@@ -76,5 +76,13 @@ val_loader = torch.utils.data.DataLoader(dataset_test,
 
 # MODELS = [audio_model, image_cnn,image_model]
 
-for i, (image_input, audio_input, cls_id, key, input_length, label) in enumerate(train_loader):
-    print(i)
+
+def train():
+    for i, (image_input, audio_input, cls_id, key, input_length, label) in enumerate(train_loader):
+        print(i)
+
+
+
+if __name__ == '__main__':    
+    import fire
+    fire.Fire()
