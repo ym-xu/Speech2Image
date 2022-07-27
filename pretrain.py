@@ -26,6 +26,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 
 parser.add_argument('--data_path', type = str, default='./../data/Flickr8k')
 parser.add_argument('--img_size',type = int, default=256, help = 'the size of image')
+parser.add_argument('--manualSeed',type=int,default= 200, help='manual seed')
 parser.add_argument('--gpu_id',type = int, default= -1)
 
 args = parser.parse_args()
@@ -46,30 +47,6 @@ image_transform = transforms.Compose([
     transforms.RandomCrop(imsize),
     transforms.RandomHorizontalFlip()])
 
-dataset = SpeechDataset(cfg.DATA_DIR, 'train', 
-                        img_size = imsize, 
-                        transform=image_transform)
-dataset_test = SpeechDataset(cfg.DATA_DIR, 'test',
-                            img_size = imsize,
-                            transform=image_transform)
-
-assert dataset
-
-train_loader = torch.utils.data.DataLoader(dataset, 
-                                        batch_size=cfg.TRAIN.BATCH_SIZE,
-                                        drop_last=True, 
-                                        shuffle=True,
-                                        num_workers=cfg.WORKERS,
-                                        collate_fn=pad_collate,
-                                        worker_init_fn=worker_init_fn)
-val_loader = torch.utils.data.DataLoader(dataset_test, 
-                                        batch_size=cfg.TRAIN.BATCH_SIZE,
-                                        drop_last=False, 
-                                        shuffle=False,
-                                        num_workers=cfg.WORKERS,
-                                        collate_fn=pad_collate,
-                                        worker_init_fn=worker_init_fn)
-
 # audio_model = AudioModels.CNN_RNN_ENCODER()
 # image_cnn = ImageModels.Inception_v3()
 # image_model = ImageModels.LINEAR_ENCODER()
@@ -77,12 +54,31 @@ val_loader = torch.utils.data.DataLoader(dataset_test,
 # MODELS = [audio_model, image_cnn,image_model]
 
 
-def train():
+if __name__ == '__main__':
+
+    dataset = SpeechDataset(cfg.DATA_DIR, 'train', 
+                        img_size = imsize, 
+                        transform=image_transform)
+    dataset_test = SpeechDataset(cfg.DATA_DIR, 'test',
+                        img_size = imsize,
+                        transform=image_transform)
+
+    assert dataset
+
+    train_loader = torch.utils.data.DataLoader(dataset, 
+                                        batch_size=cfg.TRAIN.BATCH_SIZE,
+                                        drop_last=True, 
+                                        shuffle=True,
+                                        num_workers=cfg.WORKERS,
+                                        collate_fn=pad_collate,
+                                        worker_init_fn=worker_init_fn)
+    val_loader = torch.utils.data.DataLoader(dataset_test, 
+                                        batch_size=cfg.TRAIN.BATCH_SIZE,
+                                        drop_last=False, 
+                                        shuffle=False,
+                                        num_workers=cfg.WORKERS,
+                                        collate_fn=pad_collate,
+                                        worker_init_fn=worker_init_fn)
+
     for i, (image_input, audio_input, cls_id, key, input_length, label) in enumerate(train_loader):
         print(i)
-
-
-
-if __name__ == '__main__':    
-    import fire
-    fire.Fire()
