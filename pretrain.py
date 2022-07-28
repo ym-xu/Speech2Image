@@ -13,7 +13,7 @@ from PIL import Image
 import sys
 import torchvision.transforms as transforms 
 sys.path.append("..")
-from utils.config import cfg
+from options import cfg, cfg_from_file
 
 import os
 
@@ -27,11 +27,15 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument('--data_path', type = str, default='./../data/Flickr8k')
 parser.add_argument('--img_size',type = int, default=256, help = 'the size of image')
 parser.add_argument('--manualSeed',type=int,default= 200, help='manual seed')
+parser.add_argument('--cfg_file',type = str, default='config/flickr_train.yml',help='optional config file')
 parser.add_argument('--gpu_id',type = int, default= -1)
 
 args = parser.parse_args()
 
 cfg.DATA_DIR = args.data_path
+
+if args.cfg_file is not None:
+    cfg_from_file(args.cfg_file)
 
 if args.gpu_id != -1:
     cfg.GPU_ID = args.gpu_id
