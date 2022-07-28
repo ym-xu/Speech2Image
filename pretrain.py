@@ -51,13 +51,6 @@ image_transform = transforms.Compose([
     transforms.RandomCrop(imsize),
     transforms.RandomHorizontalFlip()])
 
-# audio_model = AudioModels.CNN_RNN_ENCODER()
-# image_cnn = ImageModels.Inception_v3()
-# image_model = ImageModels.LINEAR_ENCODER()
-
-# MODELS = [audio_model, image_cnn,image_model]
-
-
 if __name__ == '__main__':
 
     dataset = SpeechDataset(cfg.DATA_DIR, 'train', 
