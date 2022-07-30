@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torchvision.models as imagemodels
 import torch.utils.model_zoo as model_zoo
 from torchvision import models
-from utils.config import cfg
+from options import cfg
 
 
 class Resnet18(imagemodels.ResNet):

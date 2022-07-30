@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import librosa
+import opensmile
 
 from shutil import copyfile
 
@@ -22,14 +23,13 @@ def list_wavs(file_ads, out_ads):
 
 def wavs2npy(file_ads, out_ads):
 
-    clss_names = os.listdir(file_ads)
+    #clss_names = os.listdir(file_ads)
+    clss_names = ['wavs']
 
     for clss_name in sorted(clss_names):
-        print(clss_name)
         clss_path = os.path.join(file_ads,clss_name)
         img_names= os.listdir(clss_path)
         for img_name in sorted(img_names):
-            print(img_name)
             img_path =  os.path.join(clss_path,img_name)
             audio_names = os.listdir(img_path)
             audio = []
@@ -44,6 +44,8 @@ def wavs2npy(file_ads, out_ads):
 
             save_name = save_path +'/' + img_name + '.npy'
             np.save(save_name,audio)
+            break
+
 
 wavs_ads = './../data/Flickr8k/audio2'
 out_ads = './../data/Flickr8k/audio2/audio_npy'
@@ -82,7 +84,8 @@ def wavs2mel(file_ads, out_ads):
             audios =np.load(audio_path,allow_pickle=True)
             mels = []
             for audio in audios:            
-                mel = audio_processing(audio)            
+                mel = audio_processing(audio)   
+                print(mel)    
                 mels.append(mel)        
             save_dir = os.path.join(out_ads,clss_name)
             if not os.path.exists(save_dir):
@@ -94,4 +97,38 @@ def wavs2mel(file_ads, out_ads):
 file_ads = './../data/Flickr8k/audio2/audio_npy'
 out_ads = './../data/Flickr8k/audio2/audio_mel'
 
-wavs2mel(file_ads, out_ads)
+#wavs2mel(file_ads, out_ads)
+
+def opensmile_features(file_ads, out_ads):
+
+    #clss_names = os.listdir(file_ads)
+    smile = opensmile.Smile(
+    feature_set=opensmile.FeatureSet.ComParE_2016,
+    feature_level=opensmile.FeatureLevel.Functionals,)
+
+    clss_names = ['wavs']
+
+    for clss_name in sorted(clss_names):
+        clss_path = os.path.join(file_ads,clss_name)
+        img_names= os.listdir(clss_path)
+        for img_name in sorted(img_names):
+            img_path =  os.path.join(clss_path,img_name)
+            audio_names = os.listdir(img_path)
+            audio = []
+            for audio_name in sorted(audio_names):
+                audio_path = os.path.join(img_path,audio_name)
+                y = smile.process_file(audio_path)
+                audio.append(np.array(y).ravel())
+            save_path = out_ads + '/'+ clss_name
+        
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+
+            save_name = save_path +'/' + img_name + '.npy'
+            np.save(save_name,audio)
+
+
+wavs_ads = './../data/Flickr8k/audio2'
+out_ads = './../data/Flickr8k/audio2/audio_opensmile'
+
+opensmile_features(wavs_ads, out_ads)

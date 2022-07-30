@@ -14,6 +14,7 @@ import sys
 import torchvision.transforms as transforms 
 sys.path.append("..")
 from options import cfg, cfg_from_file
+from utils import *
 
 import os
 
@@ -45,13 +46,40 @@ else:
 def worker_init_fn(worker_id):   # After creating the workers, each worker has an independent seed that is initialized to the curent random seed + the id of the worker
     np.random.seed(args.manualSeed + worker_id)
 
-imsize = args.img_size
-image_transform = transforms.Compose([
-    transforms.Resize(int(imsize * 76 / 64)),
-    transforms.RandomCrop(imsize),
-    transforms.RandomHorizontalFlip()])
+def train(Models,train_loader, test_loader, args):
+    audio_model, image_cnn,image_model = Models[0],Models[1],Models[2]
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.set_grad_enabled(True)
+    # Initialize all of the statistics we want to keep track of
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    loss_meter = AverageMeter()
+    progress = []
+    best_epoch, best_acc = 0, -np.inf
+    global_step, epoch = 0, 0
+    start_time = time.time()
+    exp_dir = args.save_root
+    save_model_dir = os.path.join(exp_dir,'models')
+    if not os.path.exists(save_model_dir):
+        os.makedirs(save_model_dir)
+
+    if not isinstance(audio_model, torch.nn.DataParallel):
+        audio_model = nn.DataParallel(audio_model)
+
+    if not isinstance(image_cnn, torch.nn.DataParallel):
+        image_cnn = nn.DataParallel(image_cnn)
+
+    if not isinstance(image_model, torch.nn.DataParallel):
+        image_model = nn.DataParallel(image_model)
+
 
 if __name__ == '__main__':
+
+    imsize = args.img_size
+    image_transform = transforms.Compose([
+        transforms.Resize(int(imsize * 76 / 64)),
+        transforms.RandomCrop(imsize),
+        transforms.RandomHorizontalFlip()])
 
     dataset = SpeechDataset(cfg.DATA_DIR, 'train', 
                         img_size = imsize, 
@@ -77,5 +105,3 @@ if __name__ == '__main__':
                                         collate_fn=pad_collate,
                                         worker_init_fn=worker_init_fn)
 
-    for i, (image_input, audio_input, cls_id, key, input_length, label) in enumerate(train_loader):
-        print(i)

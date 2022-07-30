@@ -13,7 +13,7 @@ import pandas as pd
 from PIL import Image
 import numpy.random as random
 import pickle
-from utils.config import cfg
+from options import cfg
 
 def pad_collate(batch):
     max_input_len = float('-inf')
