@@ -2,6 +2,9 @@ import os
 import numpy as np
 import librosa
 import opensmile
+import torch
+from towhee import pipeline 
+from torchvggish import vggish, vggish_input
 
 from shutil import copyfile
 
@@ -131,4 +134,56 @@ def opensmile_features(file_ads, out_ads):
 wavs_ads = './../data/Flickr8k/audio2'
 out_ads = './../data/Flickr8k/audio2/audio_opensmile'
 
-opensmile_features(wavs_ads, out_ads)
+#opensmile_features(wavs_ads, out_ads)
+
+# model = torch.hub.load('harritaylor/torchvggish', 'vggish')
+# model.eval()
+
+# process_Data = model._preprocess('./../data/Flickr8k/audio/wavs/3273969811_42e9fa8f63_4.wav',fs = 44100)
+
+# print(process_Data.size())
+ 
+def vggish_features(file_ads, out_ads):
+    #embedding_pipeline = pipeline('towhee/audio-embedding-vggish') 
+    # model = torch.hub.load('harritaylor/torchvggish', 'vggish')
+    # model.eval().to('cpu')
+    embedding_model = vggish()
+    embedding_model.eval()
+
+    clss_names = ['wavs']
+
+    for clss_name in sorted(clss_names):
+        clss_path = os.path.join(file_ads,clss_name)
+        img_names= os.listdir(clss_path)
+        for img_name in sorted(img_names):
+            img_path =  os.path.join(clss_path,img_name)
+            audio_names = os.listdir(img_path)
+            audio = []
+            for audio_name in sorted(audio_names):
+                print(audio_name)
+                if audio_name == '1402640441_81978e32a9_0.wav':
+                    audio_name = '1402640441_81978e32a9_1.wav'
+                audio_path = os.path.join(img_path,audio_name)
+                #embeddings = embedding_pipeline(audio_path) 
+                #y = model.forward(audio_path)
+                example = vggish_input.wavfile_to_examples(audio_path)
+                embeddings = embedding_model.forward(example)
+                audio.append(embeddings)
+                print(embeddings.shape)
+            # save_path = out_ads + '/'+ clss_name
+        
+            # if not os.path.exists(save_path):
+            #     os.makedirs(save_path)
+
+            # save_name = save_path +'/' + img_name + '.npy'
+            # np.save(save_name,audio)
+
+wavs_ads = './../data/Flickr8k/audio2'
+out_ads = './../data/Flickr8k/audio2/audio_vggish'
+#vggish_features(wavs_ads, out_ads)
+
+# embedding_model = vggish()
+# embedding_model.eval()
+
+# example = vggish_input.wavfile_to_examples("./../data/Flickr8k/audio/wavs/1402640441_81978e32a9_1.wav")
+# embeddings = embedding_model.forward(example)
