@@ -6,6 +6,8 @@ import torch
 from towhee import pipeline 
 from torchvggish import vggish, vggish_input
 
+import torch.nn as nn
+
 from shutil import copyfile
 
 file_ads = './../data/Flickr8k/audio/wavs'
@@ -26,8 +28,8 @@ def list_wavs(file_ads, out_ads):
 
 def wavs2npy(file_ads, out_ads):
 
-    #clss_names = os.listdir(file_ads)
-    clss_names = ['wavs']
+    clss_names = os.listdir(file_ads)
+    #clss_names = ['wavs']
 
     for clss_name in sorted(clss_names):
         clss_path = os.path.join(file_ads,clss_name)
@@ -50,8 +52,11 @@ def wavs2npy(file_ads, out_ads):
             break
 
 
-wavs_ads = './../data/Flickr8k/audio2'
-out_ads = './../data/Flickr8k/audio2/audio_npy'
+# wavs_ads = './../data/Flickr8k/'
+# out_ads = './../data/Flickr8k/audio2/audio_npy'
+
+wavs_ads = './../data/birds/CUB_200_2011_audio'
+out_ads = './../data/birds/CUB_200_2011_audio/audio_npy'
 
 #wavs2npy(wavs_ads, out_ads)
 
@@ -109,7 +114,7 @@ def opensmile_features(file_ads, out_ads):
     feature_set=opensmile.FeatureSet.ComParE_2016,
     feature_level=opensmile.FeatureLevel.Functionals,)
 
-    clss_names = ['wavs']
+    clss_names = ['audio']
 
     for clss_name in sorted(clss_names):
         clss_path = os.path.join(file_ads,clss_name)
@@ -131,10 +136,10 @@ def opensmile_features(file_ads, out_ads):
             np.save(save_name,audio)
 
 
-wavs_ads = './../data/Flickr8k/audio2'
-out_ads = './../data/Flickr8k/audio2/audio_opensmile'
+wavs_ads = './../data/birds/CUB_200_2011_audio'
+out_ads = './../data/birds/CUB_200_2011_audio/audio_opensmile'
 
-#opensmile_features(wavs_ads, out_ads)
+opensmile_features(wavs_ads, out_ads)
 
 # model = torch.hub.load('harritaylor/torchvggish', 'vggish')
 # model.eval()
@@ -143,12 +148,46 @@ out_ads = './../data/Flickr8k/audio2/audio_opensmile'
 
 # print(process_Data.size())
  
+
+class VGG(nn.Module): 
+    def __init__(self): 
+        super(VGG, self).__init__() 
+        self.features = nn.Sequential( 
+            nn.Conv2d(1, 64, 3, 1, 1), 
+            nn.ReLU(inplace=True), 
+            nn.MaxPool2d(2, 2), 
+            nn.Conv2d(64, 128, 3, 1, 1), 
+            nn.ReLU(inplace=True), 
+            nn.MaxPool2d(2, 2), 
+            nn.Conv2d(128, 256, 3, 1, 1), 
+            nn.ReLU(inplace=True), 
+            nn.Conv2d(256, 256, 3, 1, 1), 
+            nn.ReLU(inplace=True), 
+            nn.MaxPool2d(2, 2), 
+            nn.Conv2d(256, 512, 3, 1, 1), 
+            nn.ReLU(inplace=True), 
+            nn.Conv2d(512, 512, 3, 1, 1), 
+            nn.ReLU(inplace=True), 
+            nn.MaxPool2d(2, 2)) 
+        self.embeddings = nn.Sequential( 
+            nn.Linear(512 * 24, 4096), 
+            nn.ReLU(inplace=True), 
+            nn.Linear(4096, 4096), 
+            nn.ReLU(inplace=True), 
+            nn.Linear(4096, 128), 
+            #nn.ReLU(inplace=True) 
+        )
+
 def vggish_features(file_ads, out_ads):
     #embedding_pipeline = pipeline('towhee/audio-embedding-vggish') 
     # model = torch.hub.load('harritaylor/torchvggish', 'vggish')
     # model.eval().to('cpu')
     embedding_model = vggish()
     embedding_model.eval()
+    # model = VGG() 
+    # saved_state_dict = torch.load('./../data/vggish.pth', map_location=torch.device('cpu')) 
+    # model.load_state_dict(saved_state_dict) 
+    # model.eval()
 
     clss_names = ['wavs']
 
@@ -160,30 +199,38 @@ def vggish_features(file_ads, out_ads):
             audio_names = os.listdir(img_path)
             audio = []
             for audio_name in sorted(audio_names):
-                print(audio_name)
-                if audio_name == '1402640441_81978e32a9_0.wav':
-                    audio_name = '1402640441_81978e32a9_1.wav'
                 audio_path = os.path.join(img_path,audio_name)
                 #embeddings = embedding_pipeline(audio_path) 
-                #y = model.forward(audio_path)
-                example = vggish_input.wavfile_to_examples(audio_path)
-                embeddings = embedding_model.forward(example)
+                #embeddings = model.forward(audio_path)
+                mel_features = vggish_input.wavfile_to_examples(audio_path)
+                if mel_features.shape[0] == 0:
+                    continue
+                embeddings = embedding_model.forward(mel_features)
                 audio.append(embeddings)
-                print(embeddings.shape)
-            # save_path = out_ads + '/'+ clss_name
+            if len(audio) != 5:
+                for i in range(5 - len(audio)):
+                    audio.append(audio[-1])
+            save_path = out_ads + '/'+ clss_name
         
-            # if not os.path.exists(save_path):
-            #     os.makedirs(save_path)
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
 
-            # save_name = save_path +'/' + img_name + '.npy'
-            # np.save(save_name,audio)
+            save_name = save_path +'/' + img_name + '.npy'
+            np.save(save_name,audio)
 
 wavs_ads = './../data/Flickr8k/audio2'
 out_ads = './../data/Flickr8k/audio2/audio_vggish'
 #vggish_features(wavs_ads, out_ads)
 
+
 # embedding_model = vggish()
 # embedding_model.eval()
 
-# example = vggish_input.wavfile_to_examples("./../data/Flickr8k/audio/wavs/1402640441_81978e32a9_1.wav")
-# embeddings = embedding_model.forward(example)
+# mel_features = vggish_input.wavfile_to_examples('./../data/Flickr8k/audio/wavs/1402640441_81978e32a9_0.wav')
+# name = './../data/Flickr8k/audio/wavs/1402640441_81978e32a9_0.wav'
+# print(str(name[:-5]) + str(int(name[-5:-4]) + 1) + '.wav')
+# print(mel_features.shape)
+# if mel_features.shape[0] == 0:
+#     mel_features = mel_features.reshape(mel_features.shape[1], mel_features.shape[2], mel_features.shape[3])
+
+# print(mel_features.shape)
