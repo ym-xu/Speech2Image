@@ -99,4 +99,4 @@ embedding_model.eval()
 
 w2cmodel = wav2clip.get_model(frame_length=16000, hop_length=16000)
 
-wav2features(path, save_root, f_type = 'vggish')
+wav2features(path, save_root, f_type = 'wav2clip')
