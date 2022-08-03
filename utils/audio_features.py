@@ -5,6 +5,7 @@ import opensmile
 import torch
 from torchvggish import vggish, vggish_input
 import soundfile as sf
+import wav2clip
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -61,7 +62,9 @@ def wav2features(path, save_root, f_type = 'mel'):
                     mel_features = vggish_input.waveform_to_examples(wav_data2 / 32768.0, sr)
                 embeddings = embedding_model.forward(mel_features)
                 audio.append(embeddings)
-                
+            elif f_type == 'wav2clip':
+                embeddings = wav2clip.embed_audio(audio, w2cmodel)
+                audio.append(embeddings)
             
             i = i+1
             if i >= 10:
@@ -93,5 +96,7 @@ smile = opensmile.Smile(
 
 embedding_model = vggish()
 embedding_model.eval()
+
+w2cmodel = wav2clip.get_model(frame_length=16000, hop_length=16000)
 
 wav2features(path, save_root, f_type = 'vggish')
