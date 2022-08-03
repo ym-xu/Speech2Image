@@ -71,11 +71,24 @@ class SpeechDataset(data.Dataset):
         self.embeddings_num = cfg.SPEECH.CAPTIONS_PER_IMAGE   
         self.imsize = img_size
         self.data_dir = data_dir
+        if data_dir.find('birds') != -1:   
+            self.bbox = self.load_bbox()
+        else:
+            self.bbox = None
         split_dir = os.path.join(data_dir, split)
 
         self.filenames = self.load_filenames(data_dir, split)
         self.class_id = self.load_class_id(split_dir, len(self.filenames))
         print(self.class_id)
+
+        if cfg.DATASET_NAME == 'birds' or cfg.DATASET_NAME == 'flowers':
+            if self.split =='train':
+                unique_id = np.unique(self.class_id)
+                seq_labels = np.zeros(cfg.DATASET_ALL_CLSS_NUM)
+                for i in range(cfg.DATASET_TRAIN_CLSS_NUM):
+                   seq_labels[unique_id[i]-1]=i
+                
+                self.labels = seq_labels[np.array(self.class_id)-1]
 
     def load_filenames(self, data_dir, split):      
         filepath = '%s/%s/filenames_byimage.pickle' % (data_dir, split)
@@ -86,6 +99,28 @@ class SpeechDataset(data.Dataset):
         else:
             filenames = []
         return filenames
+
+    def load_bbox(self):
+        data_dir = self.data_dir
+        bbox_path = os.path.join(data_dir, 'CUB_200_2011/bounding_boxes.txt')
+        df_bounding_boxes = pd.read_csv(bbox_path,
+                                        delim_whitespace=True,
+                                        header=None).astype(int)
+        
+        filepath = os.path.join(data_dir, 'CUB_200_2011/images.txt')
+        df_filenames = \
+            pd.read_csv(filepath, delim_whitespace=True, header=None)
+        filenames = df_filenames[1].tolist()
+        print('Total filenames: ', len(filenames), filenames[0])
+        
+        filename_bbox = {img_file[:-4]: [] for img_file in filenames}
+        numImgs = len(filenames)
+        for i in range(0, numImgs):
+            bbox = df_bounding_boxes.iloc[i][1:].tolist()
+            key = filenames[i][:-4]
+            filename_bbox[key] = bbox
+
+        return filename_bbox
 
     def load_class_id(self, data_dir, total_num):
         if os.path.isfile(data_dir + '/class_info.pickle'):
@@ -110,9 +145,9 @@ class SpeechDataset(data.Dataset):
             imgs = get_imgs(img_name, self.imsize,
                             bbox, self.transform, normalize=self.norm)
 
-        if cfg.SPEECH.style == 'mel':
+        if cfg.SPEECH.style in ['mel','opensmile','vggish']:
             if self.data_dir.find('Flickr8k') != -1:
-                audio_file = '%s/audio2/audio_mel/%s.npy' % (data_dir, key) 
+                audio_file = '%s/%s/%s.npy' % (data_dir, 'audio_' + cfg.SPEECH.style, key) 
             
             if self.split=='train':
                 audio_ix = random.randint(0, self.embeddings_num)
@@ -128,7 +163,7 @@ class SpeechDataset(data.Dataset):
                 caps = audios[audio_ix] 
             else:
                 caps = audios
-
+        
         if cfg.TRAIN.MODAL =='extraction':
             return caps
         else:
