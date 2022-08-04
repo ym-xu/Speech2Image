@@ -5,7 +5,7 @@ import opensmile
 import torch
 from torchvggish import vggish, vggish_input
 import soundfile as sf
-import wav2clip
+#import wav2clip
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -50,29 +50,34 @@ def wav2features(path, save_root, f_type = 'mel'):
                 y,sr = librosa.load(audio_path)
                 mel = audio_processing(y)   
                 audio.append(mel)
+                print(mel)
             elif f_type == 'opensmile':
                 opens = smile.process_file(audio_path)
                 audio.append(opens)
+                print(opens.shape)
             elif f_type == 'vggish':
                 wav_data, sr = librosa.load(audio_path, dtype='int16')
                 mel_features = vggish_input.waveform_to_examples(wav_data / 32768.0, sr)
-                print(mel_features.shape)
                 if mel_features.shape[0] == 0:
-                    wav_data2 = np.hstack((wav_data, wav_data))
-                    mel_features = vggish_input.waveform_to_examples(wav_data2 / 32768.0, sr)
-                embeddings = embedding_model.forward(mel_features)
+                    # wav_data2 = np.hstack((wav_data, wav_data))
+                    # mel_features = vggish_input.waveform_to_examples(wav_data2 / 32768.0, sr)
+                    continue
+                embeddings = embedding_model.forward(mel_features).detach().numpy().reshape(-1,64)
                 audio.append(embeddings)
+                print(embeddings.shape)
+                
             elif f_type == 'wav2clip':
                 embeddings = wav2clip.embed_audio(audio, w2cmodel)
                 audio.append(embeddings)
             
             i = i+1
             if i >= 10:
-                save_path = save_root + '/'+ clss_name
-                if not os.path.exists(save_path):
-                    os.makedirs(save_path)
-                save_name = save_path +'/' + audio_name[:-6] + '.npy'
-                np.save(save_name,audio)
+                print(np.array(audio).shape, type(audio))
+                # save_path = save_root + '/'+ clss_name
+                # if not os.path.exists(save_path):
+                #     os.makedirs(save_path)
+                # save_name = save_path +'/' + audio_name[:-6] + '.npy'
+                # np.save(save_name,audio)
                 i = 0
                 audio = []
                 continue
@@ -97,6 +102,6 @@ smile = opensmile.Smile(
 embedding_model = vggish()
 embedding_model.eval()
 
-w2cmodel = wav2clip.get_model(frame_length=16000, hop_length=16000)
+#w2cmodel = wav2clip.get_model(frame_length=16000, hop_length=16000)
 
-wav2features(path, save_root, f_type = 'wav2clip')
+wav2features(path, save_root, f_type = 'vggish')
