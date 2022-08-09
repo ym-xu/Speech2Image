@@ -17,8 +17,9 @@ for cls_name in sorted(cls_names):
     cls_path = os.path.join(file_ads, cls_name) 
     img_names = os.listdir(cls_path)
     for img_name in sorted(img_names):
-        all_file.append(cls_name + '/' + img_name[:-6])
-        all_cls.append(int(cls_name[:3]))
+      if cls_name + '/' + img_name[:-6] not in all_file:
+         all_file.append(cls_name + '/' + img_name[:-6])
+         all_cls.append(int(cls_name[:3]))
     #    print(cls_name + '/' + img_name[:-6] + '  ' + cls_name[:3])
     # if img_name[-2:] == '_4':
     #     #print(img_name[:-2])
