@@ -37,6 +37,7 @@ def audio_processing(input_file):
 def wav2features(path, save_root, f_type = 'mel'):
     save_root = save_root + f_type
     for clss_name in sorted(clss_names):
+        print(clss_name)
         clss_path = os.path.join(path,clss_name)
         audio_names= os.listdir(clss_path)
         i = 0
@@ -55,7 +56,8 @@ def wav2features(path, save_root, f_type = 'mel'):
                 opens = smile.process_file(audio_path)
                 audio.append(opens)
                 print(opens.shape)
-            elif f_type == 'vggish':
+            elif f_type == 'vggish2':
+                i = i+1
                 wav_data, sr = librosa.load(audio_path, dtype='int16')
                 mel_features = vggish_input.waveform_to_examples(wav_data / 32768.0, sr)
                 if mel_features.shape[0] == 0:
@@ -64,20 +66,23 @@ def wav2features(path, save_root, f_type = 'mel'):
                     continue
                 embeddings = embedding_model.forward(mel_features).detach().numpy().reshape(-1,64)
                 audio.append(embeddings)
-                print(embeddings.shape)
+                
                 
             elif f_type == 'wav2clip':
                 embeddings = wav2clip.embed_audio(audio, w2cmodel)
                 audio.append(embeddings)
             
-            i = i+1
+            
             if i >= 10:
-                print(np.array(audio).shape, type(audio))
-                # save_path = save_root + '/'+ clss_name
-                # if not os.path.exists(save_path):
-                #     os.makedirs(save_path)
-                # save_name = save_path +'/' + audio_name[:-6] + '.npy'
-                # np.save(save_name,audio)
+                if len(audio) != 10:
+                    for i in range(10 - len(audio)):
+                        audio.append(audio[i])
+                print(len(audio))
+                save_path = save_root + '/'+ clss_name
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path)
+                save_name = save_path +'/' + audio_name[:-6] + '.npy'
+                np.save(save_name,audio)
                 i = 0
                 audio = []
                 continue
@@ -104,4 +109,4 @@ embedding_model.eval()
 
 #w2cmodel = wav2clip.get_model(frame_length=16000, hop_length=16000)
 
-wav2features(path, save_root, f_type = 'vggish')
+wav2features(path, save_root, f_type = 'vggish2')
