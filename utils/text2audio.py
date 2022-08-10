@@ -28,7 +28,8 @@ img_names = os.listdir(path)
 
 texts = []
 for img_name in sorted(img_names):
-    print(img_name)
+    if int(img_name.split('.')[0]) <= 530:
+        continue
     i = 0
     for line in open(os.path.join(path , img_name)):
         text = line.strip('\n')
