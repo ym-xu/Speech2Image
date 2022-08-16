@@ -7,7 +7,7 @@ import torch.optim as optim
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
-from model.image_ViT import AttentionBlock
+from model.image_ViT.attention import AttentionBlock
 from utils import img_to_patch
 
 class VisionTransformer(nn.Module):

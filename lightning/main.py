@@ -1,9 +1,11 @@
 ## Standard libraries
+import imp
 import os
 import numpy as np
 import random
 import math
 import json
+from omegaconf import DictConfig, OmegaConf
 from functools import partial
 from PIL import Image
 import argparse
@@ -46,6 +48,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 # datasett model
 from data import SpeechDataset
 from model import VisionTransformer
+from utils import *
 
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "../data"
@@ -133,22 +136,29 @@ if __name__=='__main__':
 
     parser = argparse.ArgumentParser(description='Siamese Network - Face Recognition', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+    parser.add_argument('--cfg_file',type = str, default='./../config/birds_train.yml',help='optional config file')
+    parser.add_argument('--imsize', default=256, type=int)
     parser.add_argument('--gpus', default=1, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
-    parser.add_argument('--pretrain_epochs', default=5000, type=int)
-    parser.add_argument('--margin', default=1.0, type=float)
-    parser.add_argument('--should_invert', default=False)
-    parser.add_argument('--imageFolderTrain', default=None)
-    parser.add_argument('--imageFolderTest', default=None)
-    parser.add_argument('--learning_rate', default=2e-2, type=float)
-    parser.add_argument('--resize', default=100, type=int)
+
+    # parser.add_argument('--pretrain_epochs', default=5000, type=int)
+    # parser.add_argument('--margin', default=1.0, type=float)
+    # parser.add_argument('--should_invert', default=False)
+    # parser.add_argument('--imageFolderTrain', default=None)
+    # parser.add_argument('--imageFolderTest', default=None)
+    # parser.add_argument('--learning_rate', default=2e-2, type=float)
+    # parser.add_argument('--resize', default=100, type=int)
 
     args = parser.parse_args()
 
-    imsize = 256
+    if args.cfg_file is not None:
+        cfg_from_file(args.cfg_file)
+
+    # config = OmegaConf.load('./../config/birds_train.yml')
+    # config.SPEECH.CAPTIONS_PER_IMAGE
 
     test_transform = transforms.Compose([
-                                    transforms.Resize(int(imsize * 76 / 64)),
+                                    transforms.Resize(int(args.imsize * 76 / 64)),
                                     transforms.RandomResizedCrop((32,32),scale=(0.8,1.0),ratio=(0.9,1.1)),
                                     transforms.ToTensor(),
                                     transforms.Normalize([0.49139968, 0.48215841, 0.44653091], [0.24703223, 0.24348513, 0.26158784])
@@ -156,15 +166,15 @@ if __name__=='__main__':
     # For training, we add some augmentation. Networks are too powerful and would overfit.
     train_transform = transforms.Compose([
                                     transforms.RandomHorizontalFlip(),
-                                    transforms.Resize(int(imsize * 76 / 64)),
+                                    transforms.Resize(int(args.imsize * 76 / 64)),
                                     transforms.RandomResizedCrop((32,32),scale=(0.8,1.0),ratio=(0.9,1.1)),
                                     transforms.ToTensor(),
                                     transforms.Normalize([0.49139968, 0.48215841, 0.44653091], [0.24703223, 0.24348513, 0.26158784])
                                     ])
 
     image_transform = transforms.Compose([
-        transforms.Resize(int(imsize * 76 / 64)),
-        transforms.RandomCrop(imsize),
+        transforms.Resize(int(args.imsize * 76 / 64)),
+        transforms.RandomCrop(args.imsize),
         transforms.RandomHorizontalFlip()])
                                      
     train_dataset = SpeechDataset(root='./../../data/birds', train=True, transform=train_transform)
