@@ -1,9 +1,9 @@
 import numpy as np
 import librosa
 import os
-import opensmile
+#import opensmile
 import torch
-from torchvggish import vggish, vggish_input
+#from torchvggish import vggish, vggish_input
 import soundfile as sf
 #import wav2clip
 import warnings
@@ -19,7 +19,7 @@ def audio_processing(input_file):
     sr = 22050
     window_size = 25
     stride = 10
-    input_dim = 40
+    input_dim = 64
     ws = int(sr * 0.001 * window_size)
     st = int(sr * 0.001 * stride)
     feat = librosa.feature.melspectrogram(y=y, sr=sr, n_mels = input_dim, n_fft=ws, hop_length=st)
@@ -47,11 +47,11 @@ def wav2features(path, save_root, f_type = 'mel'):
             if f_type == 'npy':
                 y,sr = librosa.load(audio_path)
                 audio.append(y)
-            elif f_type == 'mel':
+            elif f_type == 'mel-64':
+                i = i+1
                 y,sr = librosa.load(audio_path)
                 mel = audio_processing(y)   
                 audio.append(mel)
-                print(mel)
             elif f_type == 'opensmile':
                 opens = smile.process_file(audio_path)
                 audio.append(opens)
@@ -77,7 +77,6 @@ def wav2features(path, save_root, f_type = 'mel'):
                 if len(audio) != 10:
                     for i in range(10 - len(audio)):
                         audio.append(audio[i])
-                print(len(audio))
                 save_path = save_root + '/'+ clss_name
                 if not os.path.exists(save_path):
                     os.makedirs(save_path)
@@ -100,13 +99,13 @@ def wav2features(path, save_root, f_type = 'mel'):
 
         # print("npy ", i, ' finished')
         # i = i+1
-smile = opensmile.Smile(
-    feature_set=opensmile.FeatureSet.ComParE_2016,
-    feature_level=opensmile.FeatureLevel.Functionals,)    
+# smile = opensmile.Smile(
+#     feature_set=opensmile.FeatureSet.ComParE_2016,
+#     feature_level=opensmile.FeatureLevel.Functionals,)    
 
-embedding_model = vggish()
-embedding_model.eval()
+# embedding_model = vggish()
+# embedding_model.eval()
 
 #w2cmodel = wav2clip.get_model(frame_length=16000, hop_length=16000)
 
-wav2features(path, save_root, f_type = 'vggish2')
+wav2features(path, save_root, f_type = 'mel-64')
