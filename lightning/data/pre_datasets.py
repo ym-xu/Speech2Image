@@ -181,8 +181,8 @@ class SpeechDataset(data.Dataset):
         if config.TRAIN.MODAL =='extraction':
             return caps
         else:
-            #return imgs, caps, cls_id, key, label   
-            return imgs, label
+            return imgs, caps, cls_id, key, label   
+            #return imgs, label
 
     def __len__(self) -> int:
         return len(self.filenames)
