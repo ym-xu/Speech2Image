@@ -50,9 +50,10 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
 # datasett model
 from data import SpeechDataset
-from model import VisionTransformer, CNN_RNN_ENCODER
+from model import VisionTransformer, CNN_RNN_ENCODER, ESResNeXtFBSP
 from utils import *
 
+print(pl.__version__, torch.__version__, torchvision.__version__)
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "../data"
 # Path to the folder where the pretrained models are saved
@@ -71,11 +72,12 @@ print("Device:", device)
 
 class MM_Matching(pl.LightningModule):
     
-    def __init__(self, model_kwargs, lr):
+    def __init__(self, img_kwargs, audio_kwargs, lr):
         super().__init__()
         self.save_hyperparameters()
-        self.img_model = VisionTransformer(**model_kwargs)
+        self.img_model = VisionTransformer(**img_kwargs)
         self.audio_model = CNN_RNN_ENCODER()
+        # self.audio_model = ESResNeXtFBSP(**audio_kwargs)
         self.example_input_array = next(iter(train_loader))[0]
 
         self.__build_model()
@@ -83,12 +85,12 @@ class MM_Matching(pl.LightningModule):
     def __build_model(self):
         pass
 
-    def forward(self, x1, x2, len):
+    def forward(self, (x1, x2, len)):
         img_encode = self.img_model.forward(x1)
-        audio_encode = self.audio_model.forward(x2, len)
+        audio_encode = self.audio_model.forward(x2)
 
         return img_encode , audio_encode
-        #return audio_encode
+    #     #return audio_encode
 
     # def forward(self, x):
     #     return self.img_model(x)
@@ -101,18 +103,34 @@ class MM_Matching(pl.LightningModule):
     def _calculate_loss(self, batch, mode="train"):
         #imgs, labels = batch
         imgs, caps, cls_id, key, input_length, labels = batch
-    
-        img_encode, audio_encode = self.forward(imgs, caps, input_length)
+
         # img_encode = self.img_model.forward(imgs)
         # audio_encode = self.audio_model.forward(caps, input_length)
         # img_encode, audio_encode = self.forward(caps, input_length)
+        # loss = F.cross_entropy(audio_encode, labels)
+
+        # ---------------------
+        # MM Model
+        # ---------------------
+        img_encode, audio_encode = self((imgs, caps, input_length))
         lossb1, lossb2 = self.batch_loss(img_encode, audio_encode, cls_id)
         loss_batch = lossb1 + lossb2
         loss += loss_batch * cfg.Loss.gamma_batch
         labels = labels.type(torch.LongTensor)
         loss = F.cross_entropy(img_encode, labels)  + F.cross_entropy(audio_encode, labels)
-        # loss = F.cross_entropy(audio_encode, labels)
         loss += loss * cfg.Loss.gamma_clss
+
+        # ---------------------
+        # Audio Model
+        # ---------------------
+        # labels = labels.type(torch.LongTensor)
+        # preds = self.forward(caps)
+        # loss = F.cross_entropy(preds, labels)
+        # acc = (preds.argmax(dim=-1) == labels).float().mean()
+        
+        # ---------------------
+        # Image Model
+        # ---------------------
         # labels = labels.type(torch.LongTensor)
         # preds = self.forward(imgs)
         # loss = F.cross_entropy(preds, labels)
@@ -215,7 +233,7 @@ if __name__=='__main__':
     parser.add_argument('--imsize', default=256, type=int)
     parser.add_argument('--gpus', default=1, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
-
+    parser.add_argument('--root',type = str, default='./../../data/birds')
 
     # parser.add_argument('--pretrain_epochs', default=5000, type=int)
     # parser.add_argument('--margin', default=1.0, type=float)
@@ -253,21 +271,21 @@ if __name__=='__main__':
         transforms.RandomCrop(args.imsize),
         transforms.RandomHorizontalFlip()])
                                      
-    train_dataset = SpeechDataset(root='./../../data/birds', train=True, transform=train_transform)
-    val_dataset = SpeechDataset(root='./../../data/birds', train=True, transform=test_transform)
+    train_dataset = SpeechDataset(root=args.root, train=True, transform=train_transform)
+    val_dataset = SpeechDataset(root=args.root, train=True, transform=test_transform)
     pl.seed_everything(42)
     train_set, _ = torch.utils.data.random_split(train_dataset, [int(len(train_dataset) * 0.9), int(len(train_dataset) * 0.1)])
     pl.seed_everything(42)
     _, val_set = torch.utils.data.random_split(val_dataset, [int(len(train_dataset) * 0.9), int(len(train_dataset) * 0.1)])
 
-    test_set = SpeechDataset(root='./../../data/birds', train=False, transform=test_transform)
+    test_set = SpeechDataset(root=args.root, train=False, transform=test_transform)
 
     # We define a set of data loaders that we can use for various purposes later.
     train_loader = data.DataLoader(train_set, batch_size=128, shuffle=True, drop_last=True, pin_memory=True, num_workers=0, collate_fn=pad_collate)
     val_loader = data.DataLoader(val_set, batch_size=128, shuffle=False, drop_last=False, num_workers=0, collate_fn=pad_collate)
     test_loader = data.DataLoader(test_set, batch_size=128, shuffle=False, drop_last=False, num_workers=0, collate_fn=pad_collate)
     
-    model, results = train_model(model_kwargs={
+    model, results = train_model(img_kwargs={
                             'embed_dim': 256,
                             'hidden_dim': 512,
                             'num_heads': 8,
@@ -276,8 +294,19 @@ if __name__=='__main__':
                             'num_channels': 3,
                             'num_patches': 512,
                             'num_classes': 200,
-                            'dropout': 0.2
-                            }
-                            , lr=3e-4)
+                            'dropout': 0.2},
+                            audio_kwargs={
+                            'n_fft': 2048,
+                            'hop_length': 561,
+                            'win_length': 1654,
+                            'window': 'blackmanharris',
+                            'normalized': True,
+                            'onesided': True,
+                            'spec_height': -1,
+                            'spec_width': -1,
+                            'num_classes': 200,
+                            'apply_attention': True,
+                            'pretrained': False
+                            }, lr=3e-4)
 
     print("ViT results", results)
