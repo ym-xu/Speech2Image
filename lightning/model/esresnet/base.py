@@ -4,8 +4,6 @@ from typing import Tuple
 from typing import Union
 from typing import Callable
 from typing import Optional
-TensorPair = Tuple[torch.Tensor, torch.Tensor]
-TensorOrTwo = Union[torch.Tensor, TensorPair]
 
 import numpy as np
 import scipy.signal as sps
@@ -24,6 +22,9 @@ from typing import Type
 from typing import Tuple
 from typing import Union
 from typing import Optional
+
+TensorPair = Tuple[torch.Tensor, torch.Tensor]
+TensorOrTwo = Union[torch.Tensor, TensorPair]
 
 def scale(old_value, old_min, old_max, new_min, new_max):
     old_range = (old_max - old_min)
