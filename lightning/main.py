@@ -9,6 +9,7 @@ from functools import partial
 from PIL import Image
 import argparse
 import logging
+from collections import OrderedDict
 
 ## Imports for plotting
 import matplotlib.pyplot as plt
@@ -53,6 +54,8 @@ from data import SpeechDataset
 from model import VisionTransformer, CNN_RNN_ENCODER, ESResNeXtFBSP
 from utils import *
 
+torch.set_default_dtype(torch.float64)
+
 print(pl.__version__, torch.__version__, torchvision.__version__)
 # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
 DATASET_PATH = "../data"
@@ -72,48 +75,47 @@ print("Device:", device)
 
 class MM_Matching(pl.LightningModule):
     
-    def __init__(self, img_kwargs, audio_kwargs, lr):
+    def __init__(self, img_kwargs, audio_kwargs, trainset, testset, lr):
         super().__init__()
+
+        self.trainset = trainset
+        self.datatrain, self.dataval= \
+        torch.utils.data.random_split(self.trainset,
+                                      [round(int(len(trainset)* 0.8)),
+                                       round(int(len(trainset)* 0.2))])
+
+        self.datatest = testset
+
         self.save_hyperparameters()
         self.img_model = VisionTransformer(**img_kwargs)
         self.audio_model = CNN_RNN_ENCODER()
         # self.audio_model = ESResNeXtFBSP(**audio_kwargs)
-        self.example_input_array = next(iter(train_loader))[0]
+        # self.example_input_array = next(iter(train_loader))[0]
 
         self.__build_model()
     
     def __build_model(self):
         pass
 
-    def forward(self, (x1, x2, len)):
+    def forward(self, x1, x2, len):
         img_encode = self.img_model.forward(x1)
-        audio_encode = self.audio_model.forward(x2)
+        audio_encode = self.audio_model.forward(x2, len)
 
         return img_encode , audio_encode
     #     #return audio_encode
 
     # def forward(self, x):
     #     return self.img_model(x)
-        
-    def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
-        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100,150], gamma=0.1)
-        return [optimizer], [lr_scheduler]   
 
     def _calculate_loss(self, batch, mode="train"):
         #imgs, labels = batch
         imgs, caps, cls_id, key, input_length, labels = batch
 
-        # img_encode = self.img_model.forward(imgs)
-        # audio_encode = self.audio_model.forward(caps, input_length)
-        # img_encode, audio_encode = self.forward(caps, input_length)
-        # loss = F.cross_entropy(audio_encode, labels)
-
         # ---------------------
         # MM Model
         # ---------------------
-        img_encode, audio_encode = self((imgs, caps, input_length))
-        lossb1, lossb2 = self.batch_loss(img_encode, audio_encode, cls_id)
+        img_encode, audio_encode = self(imgs, caps, input_length)
+        lossb1, lossb2 = batch_loss(img_encode, audio_encode, cls_id)
         loss_batch = lossb1 + lossb2
         loss += loss_batch * cfg.Loss.gamma_batch
         labels = labels.type(torch.LongTensor)
@@ -150,52 +152,56 @@ class MM_Matching(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         self._calculate_loss(batch, mode="test")
 
+    def _epoch_end(self, outputs, name):
 
-    def batch_loss(cnn_code, rnn_code, class_ids,eps=1e-8):
-        # ### Mask mis-match samples  ###
-        # that come from the same class as the real sample ###
-        batch_size = cfg.TRAIN.BATCH_SIZE
-        labels = Variable(torch.LongTensor(range(batch_size)))
-        labels = labels.cuda()   
-    
-        masks = []
-        if class_ids is not None:
-            class_ids =  class_ids.data.cpu().numpy()
-            for i in range(batch_size):
-                mask = (class_ids == class_ids[i]).astype(np.uint8)
-                mask[i] = 0
-                masks.append(mask.reshape((1, -1)))
-            masks = np.concatenate(masks, 0)
-            # masks: batch_size x batch_size
-            masks = torch.ByteTensor(masks)
-            masks = masks.to(torch.bool)
-            if cfg.CUDA:
-                masks = masks.cuda()
+        avg_loss = torch.stack([x[name] for x in outputs]).mean()
+        tqdm_dict = {name: avg_loss}
+        result = OrderedDict({name: avg_loss, 'progress_bar': tqdm_dict, 'log': tqdm_dict})
+        return result
 
-        # --> seq_len x batch_size x nef
-        if cnn_code.dim() == 2:
-            cnn_code = cnn_code.unsqueeze(0)
-            rnn_code = rnn_code.unsqueeze(0)
+    def validation_epoch_end(self, outputs):
+        return self._epoch_end(outputs, name="val_loss")
+    def test_epoch_end(self, outputs):
+        return self._epoch_end(outputs, name="test_loss")
 
-        # cnn_code_norm / rnn_code_norm: seq_len x batch_size x 1
-        cnn_code_norm = torch.norm(cnn_code, 2, dim=2, keepdim=True)
-        rnn_code_norm = torch.norm(rnn_code, 2, dim=2, keepdim=True)
-        # scores* / norm*: seq_len x batch_size x batch_size
-        scores0 = torch.bmm(cnn_code, rnn_code.transpose(1, 2))
-        norm0 = torch.bmm(cnn_code_norm, rnn_code_norm.transpose(1, 2))
-        scores0 = scores0 / norm0.clamp(min=eps) * cfg.TRAIN.SMOOTH.GAMMA3
+    # ---------------------
+    # TRAINING SETUP
+    # ---------------------
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100,150], gamma=0.1)
+        return [optimizer], [lr_scheduler]   
 
-        # --> batch_size x batch_size
-        scores0 = scores0.squeeze()
-        if class_ids is not None:
-            scores0.data.masked_fill_(masks, -float('inf'))
-        scores1 = scores0.transpose(0, 1)
-        if labels is not None:
-            loss0 = nn.CrossEntropyLoss()(scores0, labels)
-            loss1 = nn.CrossEntropyLoss()(scores1, labels)
-        else:
-            loss0, loss1 = None, None
-        return loss0, loss1
+    def __dataloader(self, train, dataset):
+        # when using multi-node (ddp) we need to add the  datasampler
+        train_sampler = None
+        batch_size = cfg.TREE.BASE_SIZE
+
+        should_shuffle = train and train_sampler is None
+        should_drop = train and train_sampler is None
+        should_pin = train and train_sampler is None
+        loader = DataLoader(dataset, 
+            batch_size=128, 
+            shuffle=should_shuffle, 
+            drop_last=should_drop, 
+            pin_memory=should_pin, 
+            num_workers=0, 
+            collate_fn=pad_collate
+        )
+
+        return loader
+
+    def train_dataloader(self):
+        logging.info('training data loader called')
+        return self.__dataloader(train=True, dataset=self.datatrain)
+
+    def val_dataloader(self):
+        logging.info('val data loader called')
+        return self.__dataloader(train=False, dataset=self.dataval)
+
+    def test_dataloader(self):
+        logging.info('val data loader called')
+        return self.__dataloader(train=False, dataset=self.datatest)
 
 def train_model(**kwargs):
     trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, "MM_Matching"), 
@@ -215,7 +221,7 @@ def train_model(**kwargs):
     else:
         pl.seed_everything(42) # To be reproducable
         model = MM_Matching(**kwargs)
-        trainer.fit(model, train_loader, val_loader)
+        trainer.fit(model)
         model = MM_Matching.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
 
     # Test best model on validation and test set
@@ -234,14 +240,6 @@ if __name__=='__main__':
     parser.add_argument('--gpus', default=1, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--root',type = str, default='./../../data/birds')
-
-    # parser.add_argument('--pretrain_epochs', default=5000, type=int)
-    # parser.add_argument('--margin', default=1.0, type=float)
-    # parser.add_argument('--should_invert', default=False)
-    # parser.add_argument('--imageFolderTrain', default=None)
-    # parser.add_argument('--imageFolderTest', default=None)
-    # parser.add_argument('--learning_rate', default=2e-2, type=float)
-    # parser.add_argument('--resize', default=100, type=int)
 
     args = parser.parse_args()
 
@@ -273,15 +271,15 @@ if __name__=='__main__':
                                      
     train_dataset = SpeechDataset(root=args.root, train=True, transform=train_transform)
     val_dataset = SpeechDataset(root=args.root, train=True, transform=test_transform)
-    pl.seed_everything(42)
-    train_set, _ = torch.utils.data.random_split(train_dataset, [int(len(train_dataset) * 0.9), int(len(train_dataset) * 0.1)])
-    pl.seed_everything(42)
+    # pl.seed_everything(42)
+    # train_set, _ = torch.utils.data.random_split(train_dataset, [int(len(train_dataset) * 0.9), int(len(train_dataset) * 0.1)])
+    # pl.seed_everything(42)
     _, val_set = torch.utils.data.random_split(val_dataset, [int(len(train_dataset) * 0.9), int(len(train_dataset) * 0.1)])
 
     test_set = SpeechDataset(root=args.root, train=False, transform=test_transform)
 
     # We define a set of data loaders that we can use for various purposes later.
-    train_loader = data.DataLoader(train_set, batch_size=128, shuffle=True, drop_last=True, pin_memory=True, num_workers=0, collate_fn=pad_collate)
+    # train_loader = data.DataLoader(train_set, batch_size=128, shuffle=True, drop_last=True, pin_memory=True, num_workers=0, collate_fn=pad_collate)
     val_loader = data.DataLoader(val_set, batch_size=128, shuffle=False, drop_last=False, num_workers=0, collate_fn=pad_collate)
     test_loader = data.DataLoader(test_set, batch_size=128, shuffle=False, drop_last=False, num_workers=0, collate_fn=pad_collate)
     
@@ -306,7 +304,7 @@ if __name__=='__main__':
                             'spec_width': -1,
                             'num_classes': 200,
                             'apply_attention': True,
-                            'pretrained': False
-                            }, lr=3e-4)
+                            'pretrained': False }, trainset = train_dataset, testset = test_set,  
+                            lr=3e-4)
 
     print("ViT results", results)

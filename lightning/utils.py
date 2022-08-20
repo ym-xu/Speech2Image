@@ -2,7 +2,9 @@ import numpy as np
 from easydict import EasyDict as edict
 import torch
 import math
+import torch.nn as nn
 from torch.utils.data.dataloader import default_collate
+from torch.autograd import Variable
 
 __C = edict()
 cfg = __C
@@ -297,3 +299,49 @@ def frame_signal(signal: torch.Tensor,
     frames = frames * window
 
     return frames
+
+def batch_loss(cnn_code, rnn_code, class_ids,eps=1e-8):
+        # ### Mask mis-match samples  ###
+        # that come from the same class as the real sample ###
+        batch_size = cfg.TRAIN.BATCH_SIZE
+        labels = Variable(torch.LongTensor(range(batch_size)))
+        labels = labels.cuda()   
+    
+        masks = []
+        if class_ids is not None:
+            class_ids =  class_ids.data.cpu().numpy()
+            for i in range(batch_size):
+                mask = (class_ids == class_ids[i]).astype(np.uint8)
+                mask[i] = 0
+                masks.append(mask.reshape((1, -1)))
+            masks = np.concatenate(masks, 0)
+            # masks: batch_size x batch_size
+            masks = torch.ByteTensor(masks)
+            masks = masks.to(torch.bool)
+            if cfg.CUDA:
+                masks = masks.cuda()
+
+        # --> seq_len x batch_size x nef
+        if cnn_code.dim() == 2:
+            cnn_code = cnn_code.unsqueeze(0)
+            rnn_code = rnn_code.unsqueeze(0)
+
+        # cnn_code_norm / rnn_code_norm: seq_len x batch_size x 1
+        cnn_code_norm = torch.norm(cnn_code, 2, dim=2, keepdim=True)
+        rnn_code_norm = torch.norm(rnn_code, 2, dim=2, keepdim=True)
+        # scores* / norm*: seq_len x batch_size x batch_size
+        scores0 = torch.bmm(cnn_code, rnn_code.transpose(1, 2))
+        norm0 = torch.bmm(cnn_code_norm, rnn_code_norm.transpose(1, 2))
+        scores0 = scores0 / norm0.clamp(min=eps) * cfg.TRAIN.SMOOTH.GAMMA3
+
+        # --> batch_size x batch_size
+        scores0 = scores0.squeeze()
+        if class_ids is not None:
+            scores0.data.masked_fill_(masks, -float('inf'))
+        scores1 = scores0.transpose(0, 1)
+        if labels is not None:
+            loss0 = nn.CrossEntropyLoss()(scores0, labels)
+            loss1 = nn.CrossEntropyLoss()(scores1, labels)
+        else:
+            loss0, loss1 = None, None
+        return loss0, loss1
