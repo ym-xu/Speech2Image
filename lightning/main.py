@@ -75,16 +75,16 @@ print("Device:", device)
 
 class MM_Matching(pl.LightningModule):
     
-    def __init__(self, img_kwargs, audio_kwargs, trainset, testset, lr):
+    def __init__(self, img_kwargs, audio_kwargs, lr):
         super().__init__()
 
-        self.trainset = trainset
-        self.datatrain, self.dataval= \
-        torch.utils.data.random_split(self.trainset,
-                                      [round(int(len(trainset)* 0.8)),
-                                       round(int(len(trainset)* 0.2))])
+#         self.trainset = trainset
+#         self.datatrain, self.dataval= \
+#         torch.utils.data.random_split(self.trainset,
+#                                       [round(int(len(trainset)* 0.8)),
+#                                        round(len(trainset) - int(len(trainset)* 0.8))])
 
-        self.datatest = testset
+#         self.datatest = testset
 
         self.save_hyperparameters()
         self.img_model = VisionTransformer(**img_kwargs)
@@ -117,8 +117,8 @@ class MM_Matching(pl.LightningModule):
         img_encode, audio_encode = self(imgs, caps, input_length)
         lossb1, lossb2 = batch_loss(img_encode, audio_encode, cls_id)
         loss_batch = lossb1 + lossb2
-        loss += loss_batch * cfg.Loss.gamma_batch
-        labels = labels.type(torch.LongTensor)
+        loss = loss_batch * cfg.Loss.gamma_batch
+        labels = labels.type(torch.LongTensor).cuda()
         loss = F.cross_entropy(img_encode, labels)  + F.cross_entropy(audio_encode, labels)
         loss += loss * cfg.Loss.gamma_clss
 
@@ -152,17 +152,16 @@ class MM_Matching(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         self._calculate_loss(batch, mode="test")
 
-    def _epoch_end(self, outputs, name):
+#     def _epoch_end(self, outputs, name):
+#         avg_loss = torch.stack([x[name] for x in outputs]).mean()
+#         tqdm_dict = {name: avg_loss}
+#         result = OrderedDict({name: avg_loss, 'progress_bar': tqdm_dict, 'log': tqdm_dict})
+#         return result
 
-        avg_loss = torch.stack([x[name] for x in outputs]).mean()
-        tqdm_dict = {name: avg_loss}
-        result = OrderedDict({name: avg_loss, 'progress_bar': tqdm_dict, 'log': tqdm_dict})
-        return result
-
-    def validation_epoch_end(self, outputs):
-        return self._epoch_end(outputs, name="val_loss")
-    def test_epoch_end(self, outputs):
-        return self._epoch_end(outputs, name="test_loss")
+#     def validation_epoch_end(self, outputs):
+#         return self._epoch_end(outputs, name="val_loss")
+#     def test_epoch_end(self, outputs):
+#         return self._epoch_end(outputs, name="test_loss")
 
     # ---------------------
     # TRAINING SETUP
@@ -172,36 +171,36 @@ class MM_Matching(pl.LightningModule):
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100,150], gamma=0.1)
         return [optimizer], [lr_scheduler]   
 
-    def __dataloader(self, train, dataset):
-        # when using multi-node (ddp) we need to add the  datasampler
-        train_sampler = None
-        batch_size = cfg.TREE.BASE_SIZE
+#     def __dataloader(self, train, dataset):
+#         # when using multi-node (ddp) we need to add the  datasampler
+#         train_sampler = None
+#         batch_size = cfg.TREE.BASE_SIZE
 
-        should_shuffle = train and train_sampler is None
-        should_drop = train and train_sampler is None
-        should_pin = train and train_sampler is None
-        loader = DataLoader(dataset, 
-            batch_size=128, 
-            shuffle=should_shuffle, 
-            drop_last=should_drop, 
-            pin_memory=should_pin, 
-            num_workers=0, 
-            collate_fn=pad_collate
-        )
+#         should_shuffle = train and train_sampler is None
+#         should_drop = train and train_sampler is None
+#         should_pin = train and train_sampler is None
+#         loader = DataLoader(dataset, 
+#             batch_size=128, 
+#             shuffle=should_shuffle, 
+#             drop_last=should_drop, 
+#             pin_memory=should_pin, 
+#             num_workers=0, 
+#             collate_fn=pad_collate
+#         )
 
-        return loader
+#         return loader
 
-    def train_dataloader(self):
-        logging.info('training data loader called')
-        return self.__dataloader(train=True, dataset=self.datatrain)
+#     def train_dataloader(self):
+#         logging.info('training data loader called')
+#         return self.__dataloader(train=True, dataset=self.datatrain)
 
-    def val_dataloader(self):
-        logging.info('val data loader called')
-        return self.__dataloader(train=False, dataset=self.dataval)
+#     def val_dataloader(self):
+#         logging.info('val data loader called')
+#         return self.__dataloader(train=False, dataset=self.dataval)
 
-    def test_dataloader(self):
-        logging.info('val data loader called')
-        return self.__dataloader(train=False, dataset=self.datatest)
+#     def test_dataloader(self):
+#         logging.info('val data loader called')
+#         return self.__dataloader(train=False, dataset=self.datatest)
 
 def train_model(**kwargs):
     trainer = pl.Trainer(default_root_dir=os.path.join(CHECKPOINT_PATH, "MM_Matching"), 
@@ -221,7 +220,7 @@ def train_model(**kwargs):
     else:
         pl.seed_everything(42) # To be reproducable
         model = MM_Matching(**kwargs)
-        trainer.fit(model)
+        trainer.fit(model, train_loader, val_loader)
         model = MM_Matching.load_from_checkpoint(trainer.checkpoint_callback.best_model_path) # Load best checkpoint after training
 
     # Test best model on validation and test set
@@ -238,7 +237,7 @@ if __name__=='__main__':
     parser.add_argument('--cfg_file',type = str, default='./config/birds_train.yml',help='optional config file')
     parser.add_argument('--imsize', default=256, type=int)
     parser.add_argument('--gpus', default=1, type=int)
-    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--root',type = str, default='./../../data/birds')
 
     args = parser.parse_args()
@@ -271,15 +270,15 @@ if __name__=='__main__':
                                      
     train_dataset = SpeechDataset(root=args.root, train=True, transform=train_transform)
     val_dataset = SpeechDataset(root=args.root, train=True, transform=test_transform)
-    # pl.seed_everything(42)
-    # train_set, _ = torch.utils.data.random_split(train_dataset, [int(len(train_dataset) * 0.9), int(len(train_dataset) * 0.1)])
-    # pl.seed_everything(42)
-    _, val_set = torch.utils.data.random_split(val_dataset, [int(len(train_dataset) * 0.9), int(len(train_dataset) * 0.1)])
+    pl.seed_everything(42)
+    train_set, _ = torch.utils.data.random_split(train_dataset, [int(len(train_dataset) * 0.9), len(train_dataset) -  int(len(train_dataset) * 0.9)])
+    pl.seed_everything(42)
+    _, val_set = torch.utils.data.random_split(val_dataset, [int(len(train_dataset) * 0.9), len(train_dataset) -  int(len(train_dataset) * 0.9)])
 
     test_set = SpeechDataset(root=args.root, train=False, transform=test_transform)
 
     # We define a set of data loaders that we can use for various purposes later.
-    # train_loader = data.DataLoader(train_set, batch_size=128, shuffle=True, drop_last=True, pin_memory=True, num_workers=0, collate_fn=pad_collate)
+    train_loader = data.DataLoader(train_set, batch_size=128, shuffle=True, drop_last=True, pin_memory=True, num_workers=0, collate_fn=pad_collate)
     val_loader = data.DataLoader(val_set, batch_size=128, shuffle=False, drop_last=False, num_workers=0, collate_fn=pad_collate)
     test_loader = data.DataLoader(test_set, batch_size=128, shuffle=False, drop_last=False, num_workers=0, collate_fn=pad_collate)
     
@@ -304,7 +303,7 @@ if __name__=='__main__':
                             'spec_width': -1,
                             'num_classes': 200,
                             'apply_attention': True,
-                            'pretrained': False }, trainset = train_dataset, testset = test_set,  
+                            'pretrained': False },  
                             lr=3e-4)
 
     print("ViT results", results)
