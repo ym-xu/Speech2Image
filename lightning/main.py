@@ -1,3 +1,7 @@
+
+
+
+
 ## Standard libraries
 import os
 import numpy as np
@@ -51,7 +55,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
 # datasett model
 from data import SpeechDataset
-from model import VisionTransformer, CNN_RNN_ENCODER, ESResNeXtFBSP
+from model import VisionTransformer, CNN_RNN_ENCODER, ESResNeXtFBSP, ESResNet, ESResNeXt, ESResNetFBSP
 from utils import *
 
 torch.set_default_dtype(torch.float64)
@@ -88,8 +92,8 @@ class MM_Matching(pl.LightningModule):
 
         self.save_hyperparameters()
         self.img_model = VisionTransformer(**img_kwargs)
-        self.audio_model = CNN_RNN_ENCODER()
-        # self.audio_model = ESResNeXtFBSP(**audio_kwargs)
+        # self.audio_model = CNN_RNN_ENCODER()
+        self.audio_model = ESResNeXt(**audio_kwargs)
         # self.example_input_array = next(iter(train_loader))[0]
 
         self.__build_model()
@@ -97,15 +101,15 @@ class MM_Matching(pl.LightningModule):
     def __build_model(self):
         pass
 
-    def forward(self, x1, x2, len):
-        img_encode = self.img_model.forward(x1)
-        audio_encode = self.audio_model.forward(x2, len)
+#     def forward(self, x1, x2, len):
+#         img_encode = self.img_model.forward(x1)
+#         audio_encode = self.audio_model.forward(x2, len)
 
-        return img_encode , audio_encode
+#         return img_encode , audio_encode
     #     #return audio_encode
 
-    # def forward(self, x):
-    #     return self.img_model(x)
+    def forward(self, x):
+        return self.audio_model(x)
 
     def _calculate_loss(self, batch, mode="train"):
         #imgs, labels = batch
@@ -114,21 +118,21 @@ class MM_Matching(pl.LightningModule):
         # ---------------------
         # MM Model
         # ---------------------
-        img_encode, audio_encode = self(imgs, caps, input_length)
-        lossb1, lossb2 = batch_loss(img_encode, audio_encode, cls_id)
-        loss_batch = lossb1 + lossb2
-        loss = loss_batch * cfg.Loss.gamma_batch
-        labels = labels.type(torch.LongTensor).cuda()
-        loss = F.cross_entropy(img_encode, labels)  + F.cross_entropy(audio_encode, labels)
-        loss += loss * cfg.Loss.gamma_clss
+        # img_encode, audio_encode = self(imgs, caps, input_length)
+        # lossb1, lossb2 = batch_loss(img_encode, audio_encode, cls_id)
+        # loss_batch = lossb1 + lossb2
+        # loss = loss_batch * cfg.Loss.gamma_batch
+        # labels = labels.type(torch.LongTensor).cuda()
+        # loss = F.cross_entropy(img_encode, labels)  + F.cross_entropy(audio_encode, labels)
+        # loss += loss * cfg.Loss.gamma_clss
 
         # ---------------------
         # Audio Model
         # ---------------------
-        # labels = labels.type(torch.LongTensor)
-        # preds = self.forward(caps)
-        # loss = F.cross_entropy(preds, labels)
-        # acc = (preds.argmax(dim=-1) == labels).float().mean()
+        labels = labels.type(torch.LongTensor)
+        preds = self.forward(caps)
+        loss = F.cross_entropy(preds, labels)
+        acc = (preds.argmax(dim=-1) == labels).float().mean()
         
         # ---------------------
         # Image Model
@@ -279,8 +283,8 @@ if __name__=='__main__':
 
     # We define a set of data loaders that we can use for various purposes later.
     train_loader = data.DataLoader(train_set, batch_size=128, shuffle=True, drop_last=True, pin_memory=True, num_workers=0, collate_fn=pad_collate)
-    val_loader = data.DataLoader(val_set, batch_size=128, shuffle=False, drop_last=False, num_workers=0, collate_fn=pad_collate)
-    test_loader = data.DataLoader(test_set, batch_size=128, shuffle=False, drop_last=False, num_workers=0, collate_fn=pad_collate)
+    val_loader = data.DataLoader(val_set, batch_size=128, shuffle=False, drop_last=True, num_workers=0, collate_fn=pad_collate)
+    test_loader = data.DataLoader(test_set, batch_size=128, shuffle=False, drop_last=True, num_workers=0, collate_fn=pad_collate)
     
     model, results = train_model(img_kwargs={
                             'embed_dim': 256,
