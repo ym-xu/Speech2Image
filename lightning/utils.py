@@ -2,9 +2,17 @@ import numpy as np
 from easydict import EasyDict as edict
 import torch
 import math
-import torch.nn as nn
 from torch.utils.data.dataloader import default_collate
+import torch.nn as nn
 from torch.autograd import Variable
+import importlib
+
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Type
+from typing import Union
+from typing import Optional
 
 __C = edict()
 cfg = __C
@@ -129,6 +137,10 @@ __C.CNNRNN_ATT.in_size = 1024
 __C.CNNRNN_ATT.hidden_size = 128
 __C.CNNRNN_ATT.n_heads = 1
 
+__C.MM_ATT = edict()
+__C.MM_ATT.n_heads = 8
+__C.MM_ATT.hidden_size = 1024
+__C.MM_ATT.dropout = 0.05
 
 __C.CLASSIFICATION = edict()
 __C.CLASSIFICATION.data = 'audio'
@@ -155,6 +167,7 @@ __C.Loss.gamma_clss = 1.0
 __C.Loss.gamma_cont = 1.0
 __C.Loss.gamma_hinge = 1.0
 __C.Loss.gamma_batch = 1.0
+__C.Loss.gamma_batch_m = 1.0
 __C.Loss.gamma_KL = 1.0
 __C.Loss.gamma_deco = 1.0
 __C.Loss.gamma_adv = 1.0
@@ -299,49 +312,22 @@ def frame_signal(signal: torch.Tensor,
     frames = frames * window
 
     return frames
-
-def batch_loss(cnn_code, rnn_code, class_ids,eps=1e-8):
-        # ### Mask mis-match samples  ###
-        # that come from the same class as the real sample ###
-        batch_size = cfg.TRAIN.BATCH_SIZE
-        labels = Variable(torch.LongTensor(range(batch_size)))
-        labels = labels.cuda()   
     
-        masks = []
-        if class_ids is not None:
-            class_ids =  class_ids.data.cpu().numpy()
-            for i in range(batch_size):
-                mask = (class_ids == class_ids[i]).astype(np.uint8)
-                mask[i] = 0
-                masks.append(mask.reshape((1, -1)))
-            masks = np.concatenate(masks, 0)
-            # masks: batch_size x batch_size
-            masks = torch.ByteTensor(masks)
-            masks = masks.to(torch.bool)
-            if cfg.CUDA:
-                masks = masks.cuda()
 
-        # --> seq_len x batch_size x nef
-        if cnn_code.dim() == 2:
-            cnn_code = cnn_code.unsqueeze(0)
-            rnn_code = rnn_code.unsqueeze(0)
+def load_class(package_name: str, class_name: Optional[str] = None) -> Type:
+    if class_name is None:
+        package_name, class_name = package_name.rsplit('.', 1)
 
-        # cnn_code_norm / rnn_code_norm: seq_len x batch_size x 1
-        cnn_code_norm = torch.norm(cnn_code, 2, dim=2, keepdim=True)
-        rnn_code_norm = torch.norm(rnn_code, 2, dim=2, keepdim=True)
-        # scores* / norm*: seq_len x batch_size x batch_size
-        scores0 = torch.bmm(cnn_code, rnn_code.transpose(1, 2))
-        norm0 = torch.bmm(cnn_code_norm, rnn_code_norm.transpose(1, 2))
-        scores0 = scores0 / norm0.clamp(min=eps) * cfg.TRAIN.SMOOTH.GAMMA3
+    importlib.invalidate_caches()
 
-        # --> batch_size x batch_size
-        scores0 = scores0.squeeze()
-        if class_ids is not None:
-            scores0.data.masked_fill_(masks, -float('inf'))
-        scores1 = scores0.transpose(0, 1)
-        if labels is not None:
-            loss0 = nn.CrossEntropyLoss()(scores0, labels)
-            loss1 = nn.CrossEntropyLoss()(scores1, labels)
-        else:
-            loss0, loss1 = None, None
-        return loss0, loss1
+    package = importlib.import_module(package_name)
+    cls = getattr(package, class_name)
+
+    return cls
+
+def normalizeFeature(x):
+    
+    x = x + 1e-10 # for avoid RuntimeWarning: invalid value encountered in divide\
+    feature_norm = torch.sum(x**2, axis=1)**0.5 # l2-norm
+    feat = x / feature_norm.unsqueeze(-1)
+    return feat

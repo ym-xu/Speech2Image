@@ -21,10 +21,10 @@ IMGF:
     embedding_dim: 1024
 
 SPEECH:
-    style: 'mel'   #npy | WAV | opensmile-lld
+    style: 'esresnet'   #npy | WAV | opensmile-lld
     model: 'CRNN'   #CNN | CRNN | RNN
     self_att: True
-    input_dim: 40 # 65 | 40
+    input_dim: 64 # 65 | 40
     hidden_size: 512
     embedding_dim: 1024
     num_layers: 2
@@ -33,7 +33,7 @@ SPEECH:
 
 CNNRNN:
     rnn_type: 'GRU'
-    in_channels: 40    #40
+    in_channels: 64    #40
     hid_channels: 128
     out_channels: 256  #64
 

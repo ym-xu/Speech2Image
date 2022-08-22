@@ -3,7 +3,7 @@ import torch.utils.data as data
 from torch.autograd import Variable
 import torchvision.transforms as transforms
 # import matplotlib.pyplot as plt
-
+from model.transforms import *
 
 import os
 import sys
@@ -20,7 +20,7 @@ if sys.version_info[0] == 2:
 else:
     import pickle
 
-config = OmegaConf.load('./../config/birds_train.yml')
+config = OmegaConf.load('./config/birds_train.yml')
 config.SPEECH.CAPTIONS_PER_IMAGE
 
 def get_imgs(img_path, imsize, bbox=None, transform=None, normalize=None):
@@ -48,6 +48,7 @@ class SpeechDataset(data.Dataset):
         root: str,
         train: bool = True,
         transform: Optional[Callable] = None,
+        audiotransform: Optional[Callable] = None,
         img_size: int = 64,
         target_transform: Optional[Callable] = None,
         ) -> None:
@@ -57,6 +58,7 @@ class SpeechDataset(data.Dataset):
 
         self.train = train
         self.transform = transform
+        self.audiotransform = audiotransform
 
         self.norm = transforms.Compose([
             transforms.Resize(int(256 * 76 / 64)),
@@ -76,11 +78,11 @@ class SpeechDataset(data.Dataset):
             self.bbox = self.load_bbox()
 
         if self.train:
-            split_dir = os.path.join(root, 'train')
-            self.filenames = self.load_filenames(root, 'train')
+            split_dir = os.path.join(root, 'train-s')
+            self.filenames = self.load_filenames(root, 'train-s')
         else:
-            split_dir = os.path.join(root, 'test')
-            self.filenames = self.load_filenames(root, 'test')
+            split_dir = os.path.join(root, 'test-s')
+            self.filenames = self.load_filenames(root, 'test-s')
 
         self.class_id = self.load_class_id(split_dir, len(self.filenames))
 
@@ -162,7 +164,7 @@ class SpeechDataset(data.Dataset):
             elif self.root.find('places') != -1:
                 audio_file = '%s/audio/mel/%s.npy' % (data_dir, key) 
             else:
-                audio_file = '%s/audio_mel/%s.npy' % (data_dir, key) 
+                audio_file = '%s/audio_mel-64/%s.npy' % (data_dir, key) 
             
             if self.train:
                 audio_ix = random.randint(0, self.embeddings_num - 1 )
@@ -177,6 +179,24 @@ class SpeechDataset(data.Dataset):
                 #caps = audios[0]
             else:
                 caps = audios
+        elif config.SPEECH.style == 'esresnet':
+            if self.train:
+                audio_ix = random.randint(1, self.embeddings_num - 1)
+                audio_file = '%s/audio/%s_%s.mp3' % (data_dir, key, str(audio_ix))
+            else:
+                audio_ix = 0
+                audio_file = '%s/audio/%s_%s.mp3' % (data_dir, key, str(audio_ix))
+            wav, sample_rate = librosa.load(audio_file, sr=22050, mono=True)
+            if wav.ndim == 1:
+                wav = wav[:, np.newaxis]
+                
+            if np.abs(wav.max()) > 1.0:
+                wav = scale(wav, wav.min(), wav.max(), -1.0, 1.0)
+                
+            wav = wav.T * 32768.0
+            wav = wav.astype(np.float32)
+            
+            caps = self.audiotransform(wav)
 
         if config.TRAIN.MODAL =='extraction':
             return caps

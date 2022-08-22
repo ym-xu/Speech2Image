@@ -288,7 +288,7 @@ class ResNetWithAttention(AbstractNet):
                 padding_size=(1, 2)
             )
 
-        self.fc = torch.nn.Linear(512 * block.expansion, num_classes)
+        self.fc = torch.nn.Linear(512 * block.expansion, 1024)
 
         for m in self.modules():
             if isinstance(m, torch.nn.Conv2d):
@@ -420,11 +420,12 @@ class ResNetWithAttention(AbstractNet):
         x = self._forward_reduction(x)
         y_pred = self._forward_classifier(x)
 
-        loss = None
-        if y is not None:
-            loss = self.loss_fn(y_pred, y).mean()
+#         loss = None
+#         if y is not None:
+#             loss = self.loss_fn(y_pred, y).mean()
 
-        return y_pred if loss is None else (y_pred, loss)
+#         return y_pred if loss is None else (y_pred, loss)
+        return y_pred
 
     def loss_fn(self, y_pred: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         if isinstance(y_pred, tuple):
@@ -533,7 +534,7 @@ class _ESResNet(ResNetWithAttention):
                 if unlock:
                     unlocked_weights.append(name)
 
-            print(f'Following weights are unlocked: {unlocked_weights}')
+            # print(f'Following weights are unlocked: {unlocked_weights}')
 
         window_buffer: torch.Tensor = torch.from_numpy(
             sps.get_window(window=window, Nx=win_length, fftbins=True)
@@ -674,7 +675,7 @@ class ESResNet(_ESResNet):
                  onesided: bool = True,
                  spec_height: int = 224,
                  spec_width: int = 224,
-                 num_classes: int = 1000,
+                 num_classes: int = 200,
                  apply_attention: bool = False,
                  pretrained: bool = False,
                  lock_pretrained: Optional[Union[bool, List[str]]] = None):
@@ -710,7 +711,7 @@ class ESResNeXt(_ESResNet):
                  onesided: bool = True,
                  spec_height: int = 224,
                  spec_width: int = 224,
-                 num_classes: int = 1000,
+                 num_classes: int = 200,
                  apply_attention: bool = False,
                  pretrained: Union[bool, str] = False,
                  lock_pretrained: Optional[Union[bool, List[str]]] = None):
