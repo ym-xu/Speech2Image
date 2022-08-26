@@ -22,11 +22,13 @@ for cls_name in sorted(cls_names):
       if cls_name + '/' + img_name[:-6] not in all_file:
          all_file.append(cls_name + '/' + img_name[:-6])
          if int(cls_name[:3]) > 50:
-            x_train.append(cls_name + '/' + img_name[:-6])
-            cls_train.append(int(cls_name[:3]))
+            for i in range(10):
+               x_train.append(cls_name + '/' + img_name[:-6] + '-' + str(i))
+               cls_train.append(int(cls_name[:3]))
          else:
-            x_test.append(cls_name + '/' + img_name[:-6])
-            cls_test.append(int(cls_name[:3]))
+            for i in range(10):
+               x_test.append(cls_name + '/' + img_name[:-6] + '-' + str(i))
+               cls_test.append(int(cls_name[:3]))
             # print(cls_name + '/' + img_name[:-6] + '  ' + cls_name[:3])
     # if img_name[-2:] == '_4':
     #     #print(img_name[:-2])
@@ -44,14 +46,18 @@ print(len(x_train), len(x_test))
 print(len(cls_train), len(cls_test))
 
 # unique_id = np.unique(cls_train)
-with open('./../data/birds/train-o/filenames.pickle', 'wb') as f:
+with open('./../data/birds/train-ob/filenames.pickle', 'wb') as f:
    pickle.dump(x_train, f)
 
-with open('./../data/birds/test-o/filenames.pickle', 'wb') as f:
+with open('./../data/birds/test-ob/filenames.pickle', 'wb') as f:
    pickle.dump(x_test, f)
 
-with open('./../data/birds/train-o/class_info.pickle', 'wb') as f:
+with open('./../data/birds/train-ob/class_info.pickle', 'wb') as f:
    pickle.dump(cls_train, f)
 
-with open('./../data/birds/test-o/class_info.pickle', 'wb') as f:
+with open('./../data/birds/test-ob/class_info.pickle', 'wb') as f:
    pickle.dump(cls_test, f)
+
+# for i in x_test:
+#    if i[:3] == '001':
+#       print(i)
