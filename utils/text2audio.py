@@ -28,7 +28,7 @@ img_names = os.listdir(path)
 
 texts = []
 for img_name in sorted(img_names):
-    if int(img_name.split('.')[0]) < 657:
+    if int(img_name.split('.')[0]) < 1211:
         continue
     print(img_name)
     i = 0
