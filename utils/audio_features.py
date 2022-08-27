@@ -7,11 +7,61 @@ import torch
 import soundfile as sf
 #import wav2clip
 import warnings
+import json
+import torchvision
 warnings.filterwarnings('ignore')
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Type
+from typing import Union
+from typing import Optional
+import importlib
 
 path = './../data/birds/CUB_200_2011_audio/audio'
 clss_names = os.listdir(path)
 save_root = './../data/birds/CUB_200_2011_audio/audio_'
+
+def load_class(package_name: str, class_name: Optional[str] = None) -> Type:
+    if class_name is None:
+        package_name, class_name = package_name.rsplit('.', 1)
+
+    importlib.invalidate_caches()
+
+    package = importlib.import_module(package_name)
+    cls = getattr(package, class_name)
+
+    return cls
+
+audioconfig = json.load(open('./config/audio_config.json'))
+audiotransforms = audioconfig['Transforms']
+
+transforms_tr_audio = list()
+transforms_te_audio = list()
+
+for idx, transform in enumerate(audiotransforms):
+    use_train = transform.get('train', True)
+    use_test = transform.get('test', True)
+
+    transform = load_class(transform['class'])(**transform['args'])
+
+    if use_train:
+        transforms_tr_audio.append(transform)
+    if use_test:
+        transforms_te_audio.append(transform)
+
+    audiotransforms[idx]['train'] = use_train
+    audiotransforms[idx]['test'] = use_test
+
+transforms_tr_audio = torchvision.transforms.Compose(transforms_tr_audio)
+transforms_te_audio = torchvision.transforms.Compose(transforms_te_audio)
+
+def scale(old_value, old_min, old_max, new_min, new_max):
+    old_range = (old_max - old_min)
+    new_range = (new_max - new_min)
+    new_value = (((old_value - old_min) * new_range) / old_range) + new_min
+
+    return new_value
 
 def audio_processing(input_file):
     
@@ -19,7 +69,7 @@ def audio_processing(input_file):
     sr = 22050
     window_size = 25
     stride = 10
-    input_dim = 64
+    input_dim = 128
     ws = int(sr * 0.001 * window_size)
     st = int(sr * 0.001 * stride)
     feat = librosa.feature.melspectrogram(y=y, sr=sr, n_mels = input_dim, n_fft=ws, hop_length=st)
@@ -66,15 +116,30 @@ def wav2features(path, save_root, f_type = 'mel'):
                     continue
                 embeddings = embedding_model.forward(mel_features).detach().numpy().reshape(-1,64)
                 audio.append(embeddings)
-                
-                
             elif f_type == 'wav2clip':
                 embeddings = wav2clip.embed_audio(audio, w2cmodel)
                 audio.append(embeddings)
-            
-            
-            if i >= 10:
-                if len(audio) != 10:
+            elif f_type == "esresnet":
+                i = i+1
+                wav, sample_rate = librosa.load(audio_path, sr=22050, mono=True)
+                if wav.ndim == 1:
+                    wav = wav[:, np.newaxis]
+
+                if np.abs(wav.max()) > 1.0:
+                    wav = scale(wav, wav.min(), wav.max(), -1.0, 1.0)
+
+                wav = wav.T * 32768.0
+                wav = wav.astype(np.float32)
+                if int(clss_name[:3]) > 50 :
+                    wav = transforms_tr_audio(wav)
+                else:
+                    wav = transforms_te_audio(wav)  
+                audio.append(wav)
+
+
+            if i >= 9:
+                if len(audio) != 9:
+                    print("len(audio): ", len(audio))
                     for i in range(10 - len(audio)):
                         audio.append(audio[i])
                 save_path = save_root + '/'+ clss_name
@@ -108,4 +173,4 @@ def wav2features(path, save_root, f_type = 'mel'):
 
 #w2cmodel = wav2clip.get_model(frame_length=16000, hop_length=16000)
 
-wav2features(path, save_root, f_type = 'mel-64')
+wav2features(path, save_root, f_type = 'esresnet')
