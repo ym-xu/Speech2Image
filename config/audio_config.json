@@ -1,0 +1,43 @@
+{
+    "Transforms": [
+        {
+          "class": "transforms.ToTensor1D",
+          "args": {}
+        },
+        {
+          "class": "transforms.RandomFlip",
+          "args": {"p": 0.5},
+          "test": false
+        },
+        {
+          "class": "transforms.RandomScale",
+          "args": {"max_scale": 1.50},
+          "test": false
+        },
+        {
+          "class": "transforms.RandomPadding",
+          "args": {"out_len": 220500},
+          "test": false
+        },
+        {
+          "class": "transforms.RandomCrop",
+          "args": {"out_len": 220500},
+          "test": false
+        },
+        {
+          "class": "transforms.RandomNoise",
+          "args": {"snr_min_db": 10.0, "snr_max_db": 120.0, "p": 0.25},
+          "test": false
+        },
+        {
+          "class": "transforms.RandomPadding",
+          "args": {"out_len": 220500, "train": false},
+          "train": false
+        },
+        {
+          "class": "transforms.RandomCrop",
+          "args": {"out_len": 220500, "train": false},
+          "train": false
+        }
+      ]
+}
