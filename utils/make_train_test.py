@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import os
 import numpy as np
+from random import sample
 
 x_test = []
 x_train = []
@@ -11,6 +12,9 @@ cls_test = []
 all_cls = []
 all_file = []
 file_ads = './../data/birds/CUB_200_2011_audio/audio'
+
+l = [i for i in range(1,201)] 
+testset = sample(l, 50)
 
 cls_names = os.listdir(file_ads)
 i = 0
@@ -21,14 +25,18 @@ for cls_name in sorted(cls_names):
     for img_name in sorted(img_names):
       if cls_name + '/' + img_name[:-6] not in all_file:
          all_file.append(cls_name + '/' + img_name[:-6])
-         if int(cls_name[:3]) > 50:
-            for i in range(10):
-               x_train.append(cls_name + '/' + img_name[:-6] + '-' + str(i))
-               cls_train.append(int(cls_name[:3]))
+         if int(cls_name[:3]) not in testset:
+            x_train.append(cls_name + '/' + img_name[:-6])
+            cls_train.append(int(cls_name[:3]))
+            # for i in range(10):
+            #    x_train.append(cls_name + '/' + img_name[:-6] + '-' + str(i))
+            #    cls_train.append(int(cls_name[:3]))
          else:
-            for i in range(10):
-               x_test.append(cls_name + '/' + img_name[:-6] + '-' + str(i))
-               cls_test.append(int(cls_name[:3]))
+            x_test.append(cls_name + '/' + img_name[:-6])
+            cls_test.append(int(cls_name[:3]))
+            # for i in range(10):
+            #    x_test.append(cls_name + '/' + img_name[:-6] + '-' + str(i))
+            #    cls_test.append(int(cls_name[:3]))
             # print(cls_name + '/' + img_name[:-6] + '  ' + cls_name[:3])
     # if img_name[-2:] == '_4':
     #     #print(img_name[:-2])
@@ -45,17 +53,17 @@ for cls_name in sorted(cls_names):
 print(len(x_train), len(x_test))
 print(len(cls_train), len(cls_test))
 
-# unique_id = np.unique(cls_train)
-with open('./../data/birds/train-ob/filenames.pickle', 'wb') as f:
+# # unique_id = np.unique(cls_train)
+with open('./../data/birds/train-or/filenames.pickle', 'wb') as f:
    pickle.dump(x_train, f)
 
-with open('./../data/birds/test-ob/filenames.pickle', 'wb') as f:
+with open('./../data/birds/test-or/filenames.pickle', 'wb') as f:
    pickle.dump(x_test, f)
 
-with open('./../data/birds/train-ob/class_info.pickle', 'wb') as f:
+with open('./../data/birds/train-or/class_info.pickle', 'wb') as f:
    pickle.dump(cls_train, f)
 
-with open('./../data/birds/test-ob/class_info.pickle', 'wb') as f:
+with open('./../data/birds/test-or/class_info.pickle', 'wb') as f:
    pickle.dump(cls_test, f)
 
 # for i in x_test:
