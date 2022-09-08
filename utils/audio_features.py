@@ -18,9 +18,9 @@ from typing import Union
 from typing import Optional
 import importlib
 
-path = './../data/birds/CUB_200_2011_audio/audio'
+path = './../data/flowers/Oxford-102/Oxfords_102_audio/audio'
 clss_names = os.listdir(path)
-save_root = './../data/birds/CUB_200_2011_audio/audio_'
+save_root = './../data/flowers/Oxford-102/Oxfords_102_audio/audio_'
 
 def load_class(package_name: str, class_name: Optional[str] = None) -> Type:
     if class_name is None:
@@ -173,4 +173,4 @@ def wav2features(path, save_root, f_type = 'mel'):
 
 #w2cmodel = wav2clip.get_model(frame_length=16000, hop_length=16000)
 
-wav2features(path, save_root, f_type = 'esresnet')
+wav2features(path, save_root, f_type = 'mel-64')
