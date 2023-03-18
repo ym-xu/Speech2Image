@@ -4,9 +4,9 @@ Multihead Attention-Based Audio Image Generation with Cross-Modal Shared Weight 
 
 ## Model Structure
 
-![alt 属性文本](https://github.com/ym-xu/Speech2Image/imgs/model-f.jpg)
+![Model](https://github.com/ym-xu/Speech2Image/imgs/model-f.jpg, "Model")
 
 ## Result
 
 
-![alt 属性文本](https://github.com/ym-xu/Speech2Image/imgs/example.jpg)
+![Result](https://github.com/ym-xu/Speech2Image/imgs/example.jpg, "Result")
